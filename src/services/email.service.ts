@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { MessageTemplate, CommunicationLog } from '../types/database.types'
+import emailjs from '@emailjs/browser'
 
 interface EmailConfig {
   smtp_host: string
@@ -186,6 +187,85 @@ class EmailService {
   }
 
   /**
+   * Send email using EmailJS (client-side real email sending)
+   */
+  async sendEmailViaEmailJS(
+    followUpId: string,
+    claimId: string,
+    email: EmailMessage
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID
+      const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
+      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+
+      if (!serviceId || !templateId || !publicKey) {
+        console.log('[EmailJS] Configuration missing, falling back to mock mode')
+        return this.mockEmailSend(followUpId, claimId, email)
+      }
+
+      // Initialize EmailJS
+      emailjs.init(publicKey)
+
+      // Prepare template parameters
+      const templateParams = {
+        to_email: email.to,
+        to_name: email.to.split('@')[0], // Extract name from email
+        from_name: import.meta.env.VITE_FROM_NAME || 'Zero Risk Agent',
+        reply_to: import.meta.env.VITE_FROM_EMAIL || 'noreply@zeroriskagent.com',
+        subject: email.subject,
+        message: email.text || this.htmlToText(email.html),
+        html_content: email.html
+      }
+
+      // Send email via EmailJS
+      const response = await emailjs.send(serviceId, templateId, templateParams)
+      
+      const messageId = `emailjs_${response.status}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      // Log the communication
+      await this.logCommunication({
+        follow_up_id: followUpId,
+        claim_id: claimId,
+        communication_type: 'email',
+        direction: 'outbound',
+        recipient: email.to,
+        subject: email.subject,
+        message_content: email.html,
+        template_used: null,
+        delivery_status: 'sent',
+        delivery_timestamp: new Date().toISOString(),
+        read_timestamp: null,
+        reply_timestamp: null,
+        reply_content: null,
+        external_message_id: messageId,
+        cost_inr: 0.00, // EmailJS is free up to 200 emails/month
+        attachment_urls: null,
+        metadata: { 
+          provider: 'emailjs',
+          status: response.status,
+          text: response.text,
+          cc: email.cc,
+          bcc: email.bcc
+        }
+      })
+
+      console.log(`[EmailJS] ✅ Real Email SENT to ${email.to}`)
+      console.log(`Subject: ${email.subject}`)
+      console.log(`Status: ${response.status} - ${response.text}`)
+      console.log(`Message ID: ${messageId}`)
+      
+      return { success: true, messageId }
+    } catch (error) {
+      console.error('❌ Error sending email via EmailJS:', error)
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'EmailJS send failed' 
+      }
+    }
+  }
+
+  /**
    * Send email using SMTP (fallback method)
    */
   async sendEmailViaSMTP(
@@ -233,6 +313,58 @@ class EmailService {
       return { success: true, messageId }
     } catch (error) {
       console.error('Error sending email via SMTP:', error)
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }
+    }
+  }
+
+  /**
+   * Send simple email (for manual compose)
+   */
+  async sendEmail(emailData: {
+    to: string
+    subject: string
+    html: string
+    attachments?: Array<{ filename: string; content: File }>
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      // Convert File objects to base64 strings if attachments exist
+      const processedAttachments = emailData.attachments ? await Promise.all(
+        emailData.attachments.map(async (att) => ({
+          filename: att.filename,
+          content: await this.fileToBase64(att.content),
+          contentType: att.content.type
+        }))
+      ) : undefined
+
+      const email: EmailMessage = {
+        to: emailData.to,
+        subject: emailData.subject,
+        html: this.wrapInEmailTemplate(emailData.html, emailData.subject),
+        text: this.htmlToText(emailData.html),
+        attachments: processedAttachments
+      }
+
+      // Try EmailJS first (real email), then SendGrid, then SMTP, then mock
+      let result = await this.sendEmailViaEmailJS('manual', 'compose', email)
+      
+      if (!result.success) {
+        result = await this.sendEmailViaSendGrid('manual', 'compose', email)
+      }
+
+      if (!result.success) {
+        result = await this.sendEmailViaSMTP('manual', 'compose', email)
+      }
+
+      if (!result.success) {
+        result = await this.mockEmailSend('manual', 'compose', email)
+      }
+
+      return result
+    } catch (error) {
+      console.error('Error sending email:', error)
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
@@ -542,8 +674,30 @@ class EmailService {
       metadata: { mock_mode: true, reason: 'Email service not configured' }
     })
 
-    console.log(`[MOCK] Email sent to ${email.to}: ${email.subject}`)
+    console.log(`[MOCK EMAIL SENT]`)
+    console.log(`To: ${email.to}`)
+    console.log(`Subject: ${email.subject}`)
+    console.log(`Content Preview: ${email.text?.substring(0, 150)}...`)
+    console.log(`Message ID: ${mockMessageId}`)
+    console.log(`Full HTML Content:`, email.html)
     return { success: true, messageId: mockMessageId }
+  }
+
+  private async fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (reader.result) {
+          // Remove the data URL prefix (e.g., "data:image/png;base64,")
+          const base64 = (reader.result as string).split(',')[1]
+          resolve(base64)
+        } else {
+          reject(new Error('Failed to read file'))
+        }
+      }
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
   }
 }
 

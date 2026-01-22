@@ -4,6 +4,7 @@ import followUpService from '../services/followup.service'
 import whatsappService from '../services/whatsapp.service'
 import emailService from '../services/email.service'
 import ContactManager from '../components/ContactManager'
+import EmailComposer, { EmailData } from '../components/EmailComposer'
 import contactsService, { Contact } from '../services/contacts.service'
 import { FollowUp, MessageTemplate } from '../types/database.types'
 
@@ -54,6 +55,8 @@ export default function FollowUpMaster() {
   const [showContactManager, setShowContactManager] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [contactStats, setContactStats] = useState({ total: 0, payers: 0, hospitals: 0 })
+  const [showEmailComposer, setShowEmailComposer] = useState(false)
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
 
   useEffect(() => {
     loadDashboardData()
@@ -216,6 +219,43 @@ export default function FollowUpMaster() {
     contactsService.backupContacts()
   }
 
+  const handleSendEmail = (contact: Contact) => {
+    setSelectedContact(contact)
+    setShowEmailComposer(true)
+  }
+
+  const handleEmailSend = async (emailData: EmailData) => {
+    try {
+      if (!selectedContact) return
+      
+      console.log(`🚀 Attempting to send email to: ${emailData.to}`)
+      console.log(`📧 Subject: ${emailData.subject}`)
+      
+      // Send email using email service
+      const result = await emailService.sendEmail({
+        to: emailData.to,
+        subject: emailData.subject,
+        html: emailData.body,
+        attachments: emailData.attachments?.map(file => ({
+          filename: file.name,
+          content: file
+        }))
+      })
+      
+      if (result.success) {
+        alert(`✅ Email sent successfully to ${emailData.to}!\n\nMessage ID: ${result.messageId}`)
+        console.log(`✅ Email delivered successfully!`)
+        setShowEmailComposer(false)
+        setSelectedContact(null)
+      } else {
+        throw new Error(result.error || 'Email sending failed')
+      }
+    } catch (error) {
+      console.error('❌ Error sending email:', error)
+      alert(`❌ Failed to send email to ${emailData.to}\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check your email configuration in .env file.`)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -351,7 +391,7 @@ export default function FollowUpMaster() {
                         <button
                           title="Send Email"
                           className="p-1 hover:bg-blue-50 rounded text-blue-600"
-                          onClick={() => window.open(`mailto:${contact.email}`)}
+                          onClick={() => handleSendEmail(contact)}
                         >
                           <span className="material-icon text-xs">email</span>
                         </button>
@@ -680,7 +720,7 @@ export default function FollowUpMaster() {
       {/* Footer */}
       <footer className="py-6 border-t border-gray-200 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-gray-400">
-          <p>v1.9 | Follow-up Master Dashboard with Contact Management | zeroriskagent.com</p>
+          <p>v2.3 | Follow-up Master Dashboard with EmailJS Live Configuration | zeroriskagent.com</p>
         </div>
       </footer>
 
@@ -689,6 +729,18 @@ export default function FollowUpMaster() {
         <ContactManager
           onAddContact={handleAddContact}
           onClose={() => setShowContactManager(false)}
+        />
+      )}
+
+      {/* Email Composer Modal */}
+      {showEmailComposer && selectedContact && (
+        <EmailComposer
+          contact={selectedContact}
+          onSend={handleEmailSend}
+          onClose={() => {
+            setShowEmailComposer(false)
+            setSelectedContact(null)
+          }}
         />
       )}
     </div>

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
     "@hookform/resolvers": "^3.10.0",
     "@supabase/supabase-js": "^2.47.10",
     "@tanstack/react-query": "^5.62.11",

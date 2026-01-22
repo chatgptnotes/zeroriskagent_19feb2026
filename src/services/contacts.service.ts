@@ -189,6 +189,24 @@ class ContactsService {
         role: 'insurance_agent',
         organization: 'Star Insurance',
         createdAt: new Date().toISOString()
+      },
+      {
+        id: 'default-6',
+        name: 'CMD Hope Hospital',
+        phone: '9876543215',
+        email: 'cmd@hopehospital.com',
+        role: 'hospital_contact',
+        organization: 'Hope Hospital',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'default-7',
+        name: 'AIMS AI Project Team',
+        phone: '9876543216',
+        email: 'aimsaiproject@gmail.com',
+        role: 'hospital_contact',
+        organization: 'AIMS AI Project',
+        createdAt: new Date().toISOString()
       }
     ]
 
