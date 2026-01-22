@@ -45,6 +45,12 @@ export default function Navigation() {
       label: 'Users',
       icon: 'people',
       show: isAdmin
+    },
+    {
+      path: '/followups',
+      label: 'Follow-ups',
+      icon: 'schedule_send',
+      show: true
     }
   ]
 

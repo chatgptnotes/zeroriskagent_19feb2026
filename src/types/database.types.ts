@@ -155,6 +155,114 @@ export interface Database {
           created_at: string
           updated_at: string
         }
+        Insert: Omit<Database['public']['Tables']['payer_organizations']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['payer_organizations']['Insert']>
+      }
+      follow_ups: {
+        Row: {
+          id: string
+          claim_id: string
+          hospital_id: string
+          follow_up_type: 'missing_documents' | 'appeal_deadline' | 'payment_overdue' | 'verification_pending' | 'escalation' | 'custom'
+          priority_score: number
+          status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled'
+          assigned_to: string | null
+          due_date: string
+          description: string
+          action_required: string
+          contact_person: string | null
+          contact_phone: string | null
+          contact_email: string | null
+          whatsapp_sent: boolean
+          email_sent: boolean
+          phone_attempted: boolean
+          last_contact_date: string | null
+          next_follow_up_date: string | null
+          escalation_level: number
+          resolution_notes: string | null
+          auto_generated: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['follow_ups']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['follow_ups']['Insert']>
+      }
+      communication_logs: {
+        Row: {
+          id: string
+          follow_up_id: string
+          claim_id: string
+          communication_type: 'whatsapp' | 'email' | 'sms' | 'phone' | 'in_person'
+          direction: 'outbound' | 'inbound'
+          recipient: string
+          subject: string | null
+          message_content: string
+          template_used: string | null
+          delivery_status: 'sent' | 'delivered' | 'read' | 'replied' | 'failed' | 'bounced'
+          delivery_timestamp: string | null
+          read_timestamp: string | null
+          reply_timestamp: string | null
+          reply_content: string | null
+          external_message_id: string | null
+          cost_inr: number | null
+          attachment_urls: string[] | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['communication_logs']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['communication_logs']['Insert']>
+      }
+      message_templates: {
+        Row: {
+          id: string
+          hospital_id: string | null
+          name: string
+          category: 'missing_documents' | 'appeal_deadline' | 'payment_overdue' | 'verification_pending' | 'escalation' | 'custom'
+          channel: 'whatsapp' | 'email' | 'sms' | 'multi_channel'
+          language: 'en' | 'hi' | 'mr' | 'gu' | 'te' | 'ta' | 'kn'
+          subject: string | null
+          message_content: string
+          variables: string[]
+          is_active: boolean
+          usage_count: number
+          last_used_at: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['message_templates']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['message_templates']['Insert']>
+      }
+      escalation_rules: {
+        Row: {
+          id: string
+          hospital_id: string
+          claim_type: 'inpatient' | 'outpatient' | 'daycare' | 'diagnostic' | 'pharmacy' | 'all'
+          payer_type: 'esic' | 'cghs' | 'echs' | 'state_govt' | 'private_insurance' | 'corporate' | 'all'
+          trigger_condition: 'days_overdue' | 'amount_threshold' | 'status_change' | 'no_response'
+          trigger_value: number
+          escalation_sequence: Json
+          is_active: boolean
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['escalation_rules']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['escalation_rules']['Insert']>
+      }
+      esic_claims_extractions: {
+        Row: {
+          id: string
+          hospital_name: string
+          extracted_at: string
+          total_claims: Json
+          stage_data: Json
+          upload_id: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['esic_claims_extractions']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['esic_claims_extractions']['Insert']>
       }
     }
     Views: {
@@ -199,4 +307,9 @@ export type ClaimDenial = Database['public']['Tables']['claim_denials']['Row']
 export type Appeal = Database['public']['Tables']['appeals']['Row']
 export type RecoveryTransaction = Database['public']['Tables']['recovery_transactions']['Row']
 export type PayerOrganization = Database['public']['Tables']['payer_organizations']['Row']
+export type FollowUp = Database['public']['Tables']['follow_ups']['Row']
+export type CommunicationLog = Database['public']['Tables']['communication_logs']['Row']
+export type MessageTemplate = Database['public']['Tables']['message_templates']['Row']
+export type EscalationRule = Database['public']['Tables']['escalation_rules']['Row']
+export type ESICClaimsExtraction = Database['public']['Tables']['esic_claims_extractions']['Row']
 export type DashboardMetrics = Database['public']['Views']['dashboard_metrics']['Row']

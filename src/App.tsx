@@ -13,6 +13,7 @@ import RecoveryDashboard from './pages/RecoveryDashboard'
 import NMITracker from './pages/NMITracker'
 import Upload from './pages/Upload'
 import UserManagement from './pages/UserManagement'
+import FollowUpMaster from './pages/FollowUpMaster'
 
 function App() {
   return (
@@ -79,6 +80,13 @@ function App() {
             <ProtectedRoute requiredRole={['hospital_admin', 'super_admin']}>
               <Navigation />
               <UserManagement />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/followups" element={
+            <ProtectedRoute>
+              <Navigation />
+              <FollowUpMaster />
             </ProtectedRoute>
           } />
           
