@@ -4,6 +4,7 @@ import followUpService from '../services/followup.service'
 import whatsappService from '../services/whatsapp.service'
 import emailService from '../services/email.service'
 import ContactManager from '../components/ContactManager'
+import contactsService, { Contact } from '../services/contacts.service'
 import { FollowUp, MessageTemplate } from '../types/database.types'
 
 interface FollowUpMetrics {
@@ -51,16 +52,24 @@ export default function FollowUpMaster() {
   const [bulkResult, setBulkResult] = useState<BulkActionResult | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [showContactManager, setShowContactManager] = useState(false)
-  const [contacts, setContacts] = useState<Array<{name: string; phone: string; email: string; role: string}>>([
-    { name: 'ESIC Regional Office Mumbai', phone: '9876543210', email: 'esic.mumbai@gov.in', role: 'payer_contact' },
-    { name: 'CGHS Delhi Office', phone: '9876543211', email: 'cghs.delhi@nic.in', role: 'payer_contact' },
-    { name: 'Hospital Claims Dept', phone: '9876543212', email: 'claims@hospital.com', role: 'hospital_contact' }
-  ])
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [contactStats, setContactStats] = useState({ total: 0, payers: 0, hospitals: 0 })
 
   useEffect(() => {
     loadDashboardData()
     loadTemplates()
+    loadContacts()
   }, [])
+
+  const loadContacts = () => {
+    const allContacts = contactsService.getContacts()
+    setContacts(allContacts)
+    setContactStats({
+      total: allContacts.length,
+      payers: contactsService.getPayerContacts().length,
+      hospitals: contactsService.getHospitalContacts().length
+    })
+  }
 
   useEffect(() => {
     loadFollowUps()
@@ -188,8 +197,23 @@ export default function FollowUpMaster() {
   }
 
   const handleAddContact = (contact: { name: string; phone: string; email: string; role: string }) => {
-    setContacts([...contacts, contact])
-    alert(`Contact "${contact.name}" added successfully!`)
+    const newContact = contactsService.addContact(contact)
+    loadContacts() // Reload contacts from service
+    alert(`Contact "${newContact.name}" added successfully!`)
+  }
+
+  const handleDeleteContact = (contactId: string) => {
+    if (window.confirm('Are you sure you want to delete this contact?')) {
+      const success = contactsService.deleteContact(contactId)
+      if (success) {
+        loadContacts()
+        alert('Contact deleted successfully!')
+      }
+    }
+  }
+
+  const exportContacts = () => {
+    contactsService.backupContacts()
   }
 
   return (
@@ -208,6 +232,13 @@ export default function FollowUpMaster() {
             >
               <span className="material-icon text-sm">person_add</span>
               Add Contact
+            </button>
+            <button
+              onClick={exportContacts}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <span className="material-icon text-sm">download</span>
+              Export Contacts
             </button>
             <button
               onClick={() => followUpService.processAutomaticFollowUps()}
@@ -260,20 +291,29 @@ export default function FollowUpMaster() {
         <div className="bg-white p-4 rounded-lg border mb-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-medium text-gray-900">Quick Contacts</h3>
-            <span className="text-sm text-gray-500">{contacts.length} contacts</span>
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <span>{contactStats.total} total</span>
+              <span>•</span>
+              <span>{contactStats.payers} payers</span>
+              <span>•</span>
+              <span>{contactStats.hospitals} hospitals</span>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {contacts.map((contact, index) => (
-              <div key={index} className="border rounded-lg p-3 hover:bg-gray-50">
+            {contacts.map((contact) => (
+              <div key={contact.id} className="border rounded-lg p-3 hover:bg-gray-50 relative group">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="font-medium text-gray-900 text-sm">{contact.name}</div>
                     <div className="text-xs text-gray-500 capitalize mb-2">{contact.role.replace('_', ' ')}</div>
+                    {contact.organization && (
+                      <div className="text-xs text-blue-600 mb-2">{contact.organization}</div>
+                    )}
                     <div className="space-y-1">
                       {contact.phone && (
                         <div className="flex items-center gap-2 text-xs text-gray-600">
                           <span className="material-icon text-xs text-green-600">phone</span>
-                          <span>{contact.phone}</span>
+                          <span>{contactsService.formatPhoneNumber(contact.phone)}</span>
                           <button
                             onClick={() => navigator.clipboard.writeText(contact.phone)}
                             className="text-gray-400 hover:text-gray-600"
@@ -296,23 +336,34 @@ export default function FollowUpMaster() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 ml-2">
-                    {contact.phone && (
+                  <div className="flex flex-col items-center gap-1 ml-2">
+                    <div className="flex items-center gap-1">
+                      {contact.phone && (
+                        <button
+                          title="Send WhatsApp"
+                          className="p-1 hover:bg-green-50 rounded text-green-600"
+                          onClick={() => window.open(`https://wa.me/91${contact.phone.replace(/\D/g, '')}`)}
+                        >
+                          <span className="material-icon text-xs">chat</span>
+                        </button>
+                      )}
+                      {contact.email && (
+                        <button
+                          title="Send Email"
+                          className="p-1 hover:bg-blue-50 rounded text-blue-600"
+                          onClick={() => window.open(`mailto:${contact.email}`)}
+                        >
+                          <span className="material-icon text-xs">email</span>
+                        </button>
+                      )}
+                    </div>
+                    {!contact.id.startsWith('default-') && (
                       <button
-                        title="Send WhatsApp"
-                        className="p-1 hover:bg-green-50 rounded text-green-600"
-                        onClick={() => window.open(`https://wa.me/91${contact.phone.replace(/\D/g, '')}`)}
+                        title="Delete Contact"
+                        className="p-1 hover:bg-red-50 rounded text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDeleteContact(contact.id)}
                       >
-                        <span className="material-icon text-xs">chat</span>
-                      </button>
-                    )}
-                    {contact.email && (
-                      <button
-                        title="Send Email"
-                        className="p-1 hover:bg-blue-50 rounded text-blue-600"
-                        onClick={() => window.open(`mailto:${contact.email}`)}
-                      >
-                        <span className="material-icon text-xs">email</span>
+                        <span className="material-icon text-xs">delete</span>
                       </button>
                     )}
                   </div>
