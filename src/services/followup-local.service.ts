@@ -20,15 +20,14 @@ interface CreateFollowUpData {
   due_date: string
   description: string
   action_required: string
-  contact_person?: string
-  contact_phone?: string
-  contact_email?: string
+  contact_person?: string | null
+  contact_phone?: string | null
+  contact_email?: string | null
   auto_generated?: boolean
 }
 
 class LocalFollowUpService {
   private readonly STORAGE_KEY = 'zerorisk_followups'
-  private readonly CLAIMS_KEY = 'zerorisk_claims'
 
   // Get follow-up metrics for dashboard
   async getFollowUpMetrics(hospitalId?: string): Promise<FollowUpMetrics> {
@@ -107,7 +106,7 @@ class LocalFollowUpService {
       }
 
       if (filters.priority_min) {
-        followUps = followUps.filter(f => f.priority_score >= filters.priority_min)
+        followUps = followUps.filter(f => f.priority_score >= filters.priority_min!)
       }
 
       if (filters.overdue) {
@@ -166,13 +165,26 @@ class LocalFollowUpService {
       const followUps = this.getStoredFollowUps()
       const newFollowUp: FollowUp = {
         id: this.generateId(),
-        ...followUpData,
+        claim_id: followUpData.claim_id,
+        hospital_id: followUpData.hospital_id,
+        follow_up_type: followUpData.follow_up_type,
+        priority_score: followUpData.priority_score,
+        due_date: followUpData.due_date,
+        description: followUpData.description,
+        action_required: followUpData.action_required,
+        contact_person: followUpData.contact_person || null,
+        contact_phone: followUpData.contact_phone || null,
+        contact_email: followUpData.contact_email || null,
+        auto_generated: followUpData.auto_generated || false,
         status: 'pending',
         escalation_level: 1,
         whatsapp_sent: false,
         email_sent: false,
         phone_attempted: false,
         last_contact_date: null,
+        assigned_to: null,
+        next_follow_up_date: null,
+        resolution_notes: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
@@ -241,8 +253,8 @@ class LocalFollowUpService {
   async sendBulkCommunications(
     followUpIds: string[],
     channel: 'whatsapp' | 'email',
-    templateId: string,
-    variables: Record<string, string> = {}
+    _templateId: string,
+    _variables: Record<string, string> = {}
   ): Promise<{ sent: number; failed: number; results: Array<{ followUpId: string; success: boolean; error?: string }> }> {
     const results: Array<{ followUpId: string; success: boolean; error?: string }> = []
     let sent = 0
@@ -330,6 +342,9 @@ class LocalFollowUpService {
         email_sent: false,
         phone_attempted: false,
         last_contact_date: null,
+        assigned_to: null,
+        next_follow_up_date: null,
+        resolution_notes: null,
         auto_generated: true,
         created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
         updated_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
@@ -352,6 +367,9 @@ class LocalFollowUpService {
         email_sent: false,
         phone_attempted: false,
         last_contact_date: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        assigned_to: null,
+        next_follow_up_date: null,
+        resolution_notes: null,
         auto_generated: false,
         created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString()
@@ -374,6 +392,9 @@ class LocalFollowUpService {
         email_sent: true,
         phone_attempted: true,
         last_contact_date: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        assigned_to: null,
+        next_follow_up_date: null,
+        resolution_notes: null,
         auto_generated: true,
         created_at: new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString()

@@ -129,9 +129,6 @@ class SupabaseContactsService {
         .select('*')
         .or(`name.ilike.%${query}%,phone.ilike.%${query}%,email.ilike.%${query}%,organization.ilike.%${query}%`)
 
-      if (hospitalId) {
-        supabaseQuery = supabaseQuery.eq('hospital_id', hospitalId)
-      }
 
       const { data, error } = await supabaseQuery
 
@@ -177,8 +174,8 @@ class SupabaseContactsService {
   }
 
   // Export contacts as JSON
-  async exportContacts(hospitalId?: string): Promise<string> {
-    const contacts = await this.getContacts(hospitalId)
+  async exportContacts(): Promise<string> {
+    const contacts = await this.getContacts()
     return JSON.stringify(contacts, null, 2)
   }
 
@@ -232,7 +229,7 @@ class SupabaseContactsService {
   }
 
   // Migrate data from localStorage to Supabase
-  async migrateFromLocalStorage(hospitalId?: string): Promise<{ imported: number; errors: string[] }> {
+  async migrateFromLocalStorage(): Promise<{ imported: number; errors: string[] }> {
     const result = { imported: 0, errors: [] as string[] }
     
     try {
@@ -322,9 +319,9 @@ class SupabaseContactsService {
   }
 
   // Get statistics
-  async getContactStats(hospitalId?: string): Promise<{ total: number; payers: number; hospitals: number }> {
+  async getContactStats(): Promise<{ total: number; payers: number; hospitals: number }> {
     try {
-      const contacts = await this.getContacts(hospitalId)
+      const contacts = await this.getContacts()
       return {
         total: contacts.length,
         payers: contacts.filter(c => c.role === 'payer_contact').length,

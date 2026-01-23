@@ -452,16 +452,25 @@ export default function FollowUpMaster() {
                 const file = (e.target as HTMLInputElement).files?.[0]
                 if (file) {
                   const reader = new FileReader()
-                  reader.onload = (event) => {
+                  reader.onload = async (event) => {
                     try {
                       const data = event.target?.result as string
-                      const success = contactsService.importContacts(data)
-                      if (success) {
-                        loadContacts()
-                        alert('Contacts imported successfully!')
-                      } else {
-                        alert('Failed to import contacts. Please check the file format.')
+                      const result = await contactsService.importContacts(data)
+                      let message = `Import completed!\n\n✅ Imported: ${result.imported} contacts`
+                      
+                      if (result.skipped > 0) {
+                        message += `\n⚠️ Skipped: ${result.skipped} contacts`
                       }
+                      
+                      if (result.errors.length > 0) {
+                        message += `\n\n❗ Issues encountered:`
+                        result.errors.slice(0, 3).forEach(error => {
+                          message += `\n• ${error}`
+                        })
+                      }
+                      
+                      alert(message)
+                      await loadContacts()
                     } catch (error) {
                       alert('Error reading file. Please try again.')
                     }

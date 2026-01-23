@@ -66,7 +66,7 @@ export default function BulkContactImport({ onImportComplete, onClose }: BulkCon
       const data = JSON.parse(text)
       if (Array.isArray(data)) {
         return data.map(item => ({
-          id: item.id || contactsService.generateId?.() || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          id: item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
           name: item.name || '',
           phone: item.phone || '',
           email: item.email || '',
