@@ -144,75 +144,9 @@ class ContactsService {
   }
 
   private getDefaultContacts(): Contact[] {
-    const defaultContacts: Contact[] = [
-      {
-        id: 'default-1',
-        name: 'ESIC Regional Office Mumbai',
-        phone: '9876543210',
-        email: 'esic.mumbai@gov.in',
-        role: 'payer_contact',
-        organization: 'ESIC',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'default-2',
-        name: 'CGHS Delhi Office',
-        phone: '9876543211',
-        email: 'cghs.delhi@nic.in',
-        role: 'payer_contact',
-        organization: 'CGHS',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'default-3',
-        name: 'Hospital Claims Department',
-        phone: '9876543212',
-        email: 'claims@hospital.com',
-        role: 'hospital_contact',
-        organization: 'Main Hospital',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'default-4',
-        name: 'TPA Healthcare Services',
-        phone: '9876543213',
-        email: 'support@tpahealthcare.com',
-        role: 'tpa_contact',
-        organization: 'TPA Healthcare',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'default-5',
-        name: 'Insurance Claims Officer',
-        phone: '9876543214',
-        email: 'claims@insurance.com',
-        role: 'insurance_agent',
-        organization: 'Star Insurance',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'default-6',
-        name: 'CMD Hope Hospital',
-        phone: '9876543215',
-        email: 'cmd@hopehospital.com',
-        role: 'hospital_contact',
-        organization: 'Hope Hospital',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'default-7',
-        name: 'AIMS AI Project Team',
-        phone: '9876543216',
-        email: 'aimsaiproject@gmail.com',
-        role: 'hospital_contact',
-        organization: 'AIMS AI Project',
-        createdAt: new Date().toISOString()
-      }
-    ]
-
-    // Save default contacts to localStorage
-    this.saveContacts(defaultContacts)
-    return defaultContacts
+    // Return empty array - users will start with no contacts
+    // and can add their own real contacts
+    return []
   }
 
   // Utility methods for quick access
@@ -231,7 +165,7 @@ class ContactsService {
   // Format phone number
   formatPhoneNumber(phone: string): string {
     const cleaned = phone.replace(/\D/g, '')
-    if (cleaned.length === 10 && cleaned.startsWith('9')) {
+    if (this.isValidPhone(phone)) {
       return `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`
     }
     return phone
@@ -240,13 +174,45 @@ class ContactsService {
   // Validate email
   isValidEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
+    return emailRegex.test(email.trim())
   }
 
-  // Validate phone
+  // Validate Indian phone number
   isValidPhone(phone: string): boolean {
     const cleaned = phone.replace(/\D/g, '')
-    return cleaned.length === 10 && cleaned.startsWith('9')
+    
+    // Valid Indian mobile numbers:
+    // - 10 digits starting with 6, 7, 8, or 9
+    // - 11 digits starting with 91 (country code)
+    // - 13 digits starting with +91
+    
+    if (cleaned.length === 10) {
+      return /^[6-9]\d{9}$/.test(cleaned)
+    } else if (cleaned.length === 12 && cleaned.startsWith('91')) {
+      const number = cleaned.slice(2)
+      return /^[6-9]\d{9}$/.test(number)
+    } else if (phone.startsWith('+91') && cleaned.length === 12) {
+      const number = cleaned.slice(2)
+      return /^[6-9]\d{9}$/.test(number)
+    }
+    
+    return false
+  }
+
+  // Normalize phone number to 10-digit format
+  normalizePhone(phone: string): string {
+    const cleaned = phone.replace(/\D/g, '')
+    
+    if (cleaned.length === 10 && /^[6-9]\d{9}$/.test(cleaned)) {
+      return cleaned
+    } else if (cleaned.length === 12 && cleaned.startsWith('91')) {
+      const number = cleaned.slice(2)
+      if (/^[6-9]\d{9}$/.test(number)) {
+        return number
+      }
+    }
+    
+    return phone // Return original if can't normalize
   }
 }
 

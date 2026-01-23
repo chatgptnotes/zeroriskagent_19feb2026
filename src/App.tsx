@@ -14,6 +14,7 @@ import NMITracker from './pages/NMITracker'
 import Upload from './pages/Upload'
 import UserManagement from './pages/UserManagement'
 import FollowUpMaster from './pages/FollowUpMaster'
+import ContactUs from './pages/ContactUs'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/contact" element={<ContactUs />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<AdminRegister />} />
           

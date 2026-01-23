@@ -321,6 +321,190 @@ class EmailService {
   }
 
   /**
+   * Send template-based email via EmailJS (for EmailComposer)
+   */
+  async sendEmailJSTemplate(templateData: {
+    to: string
+    templateType: string
+    subject: string
+    body: string
+    contactName?: string
+    contactPhone?: string
+    contactEmail?: string
+    organization?: string
+    variables?: Record<string, string>
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID
+      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+      
+      // Map template types to EmailJS template IDs
+      const templateIds: Record<string, string> = {
+        follow_up: import.meta.env.VITE_EMAILJS_FOLLOWUP_TEMPLATE_ID || import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        document_request: import.meta.env.VITE_EMAILJS_DOCUMENT_TEMPLATE_ID || import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        payment_inquiry: import.meta.env.VITE_EMAILJS_PAYMENT_TEMPLATE_ID || import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        meeting_request: import.meta.env.VITE_EMAILJS_MEETING_TEMPLATE_ID || import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        general: import.meta.env.VITE_EMAILJS_GENERAL_TEMPLATE_ID || import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        default: import.meta.env.VITE_EMAILJS_TEMPLATE_ID
+      }
+
+      const templateId = templateIds[templateData.templateType] || templateIds.default
+
+      if (!serviceId || !templateId || !publicKey) {
+        console.log('[EmailJS] Configuration missing for template email, using fallback')
+        return this.sendTemplateEmailFallback(templateData)
+      }
+
+      // Initialize EmailJS
+      emailjs.init(publicKey)
+
+      // Prepare template parameters with all possible variables
+      const templateParams = {
+        to_email: templateData.to,
+        to_name: templateData.contactName || templateData.to.split('@')[0],
+        from_name: import.meta.env.VITE_FROM_NAME || 'Zero Risk Agent',
+        reply_to: import.meta.env.VITE_FROM_EMAIL || 'aimsaiproject@gmail.com',
+        subject: templateData.subject,
+        message: templateData.body,
+        html_content: templateData.body,
+        
+        // Contact variables for template substitution
+        name: templateData.contactName || 'Valued Contact',
+        email: templateData.contactEmail || templateData.to,
+        phone: templateData.contactPhone || 'Not provided',
+        organization: templateData.organization || 'Organization',
+        
+        // Additional variables
+        ...templateData.variables
+      }
+
+      // Send email via EmailJS
+      const response = await emailjs.send(serviceId, templateId, templateParams)
+      
+      const messageId = `template_${response.status}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      console.log(`[EmailJS] ✅ Template Email SENT`)
+      console.log(`Template Type: ${templateData.templateType}`)
+      console.log(`To: ${templateData.to}`)
+      console.log(`Subject: ${templateData.subject}`)
+      console.log(`Status: ${response.status} - ${response.text}`)
+      console.log(`Message ID: ${messageId}`)
+      
+      return { success: true, messageId }
+    } catch (error) {
+      console.error('❌ Error sending template email via EmailJS:', error)
+      
+      // Fallback to regular email method
+      return this.sendTemplateEmailFallback(templateData)
+    }
+  }
+
+  /**
+   * Fallback method for template email when EmailJS fails
+   */
+  private async sendTemplateEmailFallback(templateData: {
+    to: string
+    templateType: string
+    subject: string
+    body: string
+    contactName?: string
+    contactPhone?: string
+    contactEmail?: string
+    organization?: string
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    console.log(`[EmailJS] Using fallback for template: ${templateData.templateType}`)
+    
+    return this.sendEmail({
+      to: templateData.to,
+      subject: templateData.subject,
+      html: templateData.body.replace(/\n/g, '<br>')
+    })
+  }
+
+  /**
+   * Send contact form submission email
+   */
+  async sendContactForm(contactData: {
+    name: string
+    email: string
+    phone: string
+    subject: string
+    message: string
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID
+      const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
+      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+
+      if (!serviceId || !templateId || !publicKey) {
+        console.log('[EmailJS] Configuration missing for contact form, using fallback')
+        return this.sendContactFormFallback(contactData)
+      }
+
+      // Initialize EmailJS
+      emailjs.init(publicKey)
+
+      // Send contact form via EmailJS with template variables
+      const response = await emailjs.send(serviceId, templateId, {
+        name: contactData.name,
+        email: contactData.email,
+        phone: contactData.phone,
+        subject: contactData.subject,
+        message: contactData.message,
+        to_email: import.meta.env.VITE_FROM_EMAIL || 'aimsaiproject@gmail.com',
+        from_name: 'Zero Risk Agent Contact Form'
+      })
+      
+      const messageId = `contact_${response.status}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      console.log(`[EmailJS] ✅ Contact Form Email SENT`)
+      console.log(`From: ${contactData.name} <${contactData.email}>`)
+      console.log(`Subject: Contact Form: ${contactData.subject}`)
+      console.log(`Phone: ${contactData.phone}`)
+      console.log(`Status: ${response.status} - ${response.text}`)
+      console.log(`Message ID: ${messageId}`)
+      
+      return { success: true, messageId }
+    } catch (error) {
+      console.error('❌ Error sending contact form via EmailJS:', error)
+      
+      // Fallback to regular email method
+      return this.sendContactFormFallback(contactData)
+    }
+  }
+
+  /**
+   * Fallback method for contact form when EmailJS fails
+   */
+  private async sendContactFormFallback(contactData: {
+    name: string
+    email: string
+    phone: string
+    subject: string
+    message: string
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const htmlContent = `
+      <h2>New Contact Form Submission</h2>
+      <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>Name:</strong> ${contactData.name}</p>
+        <p><strong>Email:</strong> <a href="mailto:${contactData.email}">${contactData.email}</a></p>
+        <p><strong>Phone:</strong> <a href="tel:${contactData.phone}">${contactData.phone}</a></p>
+        <p><strong>Subject:</strong> ${contactData.subject}</p>
+      </div>
+      <div style="background: #fff; padding: 20px; border-left: 4px solid #0891b2; margin: 20px 0;">
+        <h3>Message:</h3>
+        <p>${contactData.message.replace(/\n/g, '<br>')}</p>
+      </div>
+    `
+
+    return this.sendEmail({
+      to: import.meta.env.VITE_FROM_EMAIL || 'aimsaiproject@gmail.com',
+      subject: `Contact Form: ${contactData.subject}`,
+      html: htmlContent
+    })
+  }
+
+  /**
    * Send simple email (for manual compose)
    */
   async sendEmail(emailData: {
