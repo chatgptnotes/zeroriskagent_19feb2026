@@ -49,6 +49,10 @@ export default function LandingPage() {
               <a href="#how-it-works" className="text-sm text-gray-300 hover:text-white transition-colors duration-200">How It Works</a>
               <a href="#pricing" className="text-sm text-gray-300 hover:text-white transition-colors duration-200">Pricing</a>
               <a href="#roi" className="text-sm text-gray-300 hover:text-white transition-colors duration-200">ROI Calculator</a>
+              <a href="/contact" className="text-sm text-gray-300 hover:text-white transition-colors duration-200 flex items-center gap-1">
+                <span className="material-icon" style={{ fontSize: '16px' }}>contact_mail</span>
+                Contact
+              </a>
               <a href="/recovery" className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-orange-600 rounded-lg blur opacity-75 group-hover:opacity-100 transition duration-200"></div>
                 <div className="relative px-6 py-2.5 bg-slate-900 rounded-lg flex items-center gap-2">
@@ -406,13 +410,13 @@ export default function LandingPage() {
                 Start with zero risk. We only win when you win.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button className="group relative">
+                <a href="/contact" className="group relative">
                   <div className="absolute -inset-1 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl blur opacity-75 group-hover:opacity-100 transition duration-200"></div>
                   <div className="relative px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl flex items-center justify-center gap-3 text-lg font-bold group-hover:scale-105 transition-transform duration-200">
                     <span className="material-icon">contact_mail</span>
                     <span>Schedule Demo</span>
                   </div>
-                </button>
+                </a>
                 <button className="relative px-8 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl flex items-center justify-center gap-3 text-lg font-semibold hover:bg-white/15 transition-all duration-200">
                   <span className="material-icon">call</span>
                   <span>Call: +91-22-12345678</span>
@@ -452,7 +456,7 @@ export default function LandingPage() {
               <h4 className="font-semibold text-white mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
                 <li><a href="#" className="text-gray-400 hover:text-red-400 transition">About Us</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-red-400 transition">Contact</a></li>
+                <li><a href="/contact" className="text-gray-400 hover:text-red-400 transition">Contact</a></li>
                 <li><a href="#" className="text-gray-400 hover:text-red-400 transition">Privacy Policy</a></li>
                 <li><a href="#" className="text-gray-400 hover:text-red-400 transition">Terms of Service</a></li>
               </ul>

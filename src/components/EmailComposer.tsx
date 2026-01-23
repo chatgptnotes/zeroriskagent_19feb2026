@@ -13,6 +13,7 @@ export interface EmailData {
   body: string
   attachments?: File[]
   template?: string
+  useEmailJS?: boolean
 }
 
 const EMAIL_TEMPLATES = {
@@ -130,6 +131,7 @@ export default function EmailComposer({ contact, onSend, onClose }: EmailCompose
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
   const [isHtmlMode, setIsHtmlMode] = useState(false)
   const [attachments, setAttachments] = useState<File[]>([])
+  const [useEmailJS, setUseEmailJS] = useState(true)
 
   const replaceVariables = (text: string): string => {
     return text
@@ -172,7 +174,9 @@ export default function EmailComposer({ contact, onSend, onClose }: EmailCompose
 
     const finalEmailData = {
       ...emailData,
-      attachments: attachments.length > 0 ? attachments : undefined
+      attachments: attachments.length > 0 ? attachments : undefined,
+      template: selectedTemplate,
+      useEmailJS: useEmailJS
     }
 
     onSend(finalEmailData)
@@ -224,6 +228,54 @@ export default function EmailComposer({ contact, onSend, onClose }: EmailCompose
                   {key.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                 </button>
               ))}
+            </div>
+            
+            {/* EmailJS Status */}
+            <div className="flex items-center justify-between mt-3 p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="material-icon text-blue-600 text-sm">email</span>
+                <span className="text-sm font-medium text-gray-700">
+                  {useEmailJS ? 'Using EmailJS Templates' : 'Standard Email Mode'}
+                </span>
+                {selectedTemplate && (
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                    {selectedTemplate.replace('_', ' ')}
+                  </span>
+                )}
+                {useEmailJS && (
+                  <span className="material-icon text-green-600 text-sm" title="Real emails via EmailJS">verified</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Standard</span>
+                <button
+                  onClick={() => setUseEmailJS(!useEmailJS)}
+                  title={useEmailJS ? 'Switch to standard email method' : 'Switch to EmailJS templates (recommended)'}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${
+                    useEmailJS ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                    useEmailJS ? 'translate-x-5' : 'translate-x-0'
+                  }`} />
+                </button>
+                <span className="text-xs text-gray-500">EmailJS</span>
+              </div>
+            </div>
+            
+            {/* Help Text */}
+            <div className="text-xs text-gray-600 mt-2 px-1">
+              {useEmailJS ? (
+                <span className="flex items-center gap-1">
+                  <span className="material-icon text-xs text-green-600">info</span>
+                  EmailJS mode sends real emails using your configured templates with variable substitution
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <span className="material-icon text-xs text-gray-500">info</span>
+                  Standard mode uses fallback email service (may be mocked in development)
+                </span>
+              )}
             </div>
           </div>
 

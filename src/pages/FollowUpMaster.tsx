@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import followUpService from '../services/followup.service'
+import followUpService from '../services/followup-local.service'
 import whatsappService from '../services/whatsapp.service'
 import emailService from '../services/email.service'
 import ContactManager from '../components/ContactManager'
 import EmailComposer, { EmailData } from '../components/EmailComposer'
-import contactsService, { Contact } from '../services/contacts.service'
+import GettingStarted from '../components/GettingStarted'
+import BulkContactImport from '../components/BulkContactImport'
+import contactsService, { Contact } from '../services/contacts-supabase.service'
 import { FollowUp, MessageTemplate } from '../types/database.types'
 
 interface FollowUpMetrics {
@@ -57,6 +59,7 @@ export default function FollowUpMaster() {
   const [contactStats, setContactStats] = useState({ total: 0, payers: 0, hospitals: 0 })
   const [showEmailComposer, setShowEmailComposer] = useState(false)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [showBulkImport, setShowBulkImport] = useState(false)
 
   useEffect(() => {
     loadDashboardData()
@@ -64,14 +67,15 @@ export default function FollowUpMaster() {
     loadContacts()
   }, [])
 
-  const loadContacts = () => {
-    const allContacts = contactsService.getContacts()
-    setContacts(allContacts)
-    setContactStats({
-      total: allContacts.length,
-      payers: contactsService.getPayerContacts().length,
-      hospitals: contactsService.getHospitalContacts().length
-    })
+  const loadContacts = async () => {
+    try {
+      const allContacts = await contactsService.getContacts()
+      setContacts(allContacts)
+      const stats = await contactsService.getContactStats()
+      setContactStats(stats)
+    } catch (error) {
+      console.error('Error loading contacts:', error)
+    }
   }
 
   useEffect(() => {
@@ -199,29 +203,103 @@ export default function FollowUpMaster() {
     return new Date(dueDate) < new Date() && status !== 'completed'
   }
 
-  const handleAddContact = (contact: { name: string; phone: string; email: string; role: string }) => {
-    const newContact = contactsService.addContact(contact)
-    loadContacts() // Reload contacts from service
-    alert(`Contact "${newContact.name}" added successfully!`)
+  const handleAddContact = async (contact: { name: string; phone: string; email: string; role: string; organization?: string }) => {
+    try {
+      const newContact = await contactsService.addContact(contact)
+      if (newContact) {
+        await loadContacts() // Reload contacts from Supabase
+        alert(`Contact "${newContact.name}" added successfully to Supabase!`)
+      } else {
+        alert('Failed to add contact. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error adding contact:', error)
+      alert('Error adding contact. Please check your connection.')
+    }
   }
 
-  const handleDeleteContact = (contactId: string) => {
+  const handleDeleteContact = async (contactId: string) => {
     if (window.confirm('Are you sure you want to delete this contact?')) {
-      const success = contactsService.deleteContact(contactId)
-      if (success) {
-        loadContacts()
-        alert('Contact deleted successfully!')
+      try {
+        const success = await contactsService.deleteContact(contactId)
+        if (success) {
+          await loadContacts()
+          alert('Contact deleted successfully from Supabase!')
+        } else {
+          alert('Failed to delete contact. Please try again.')
+        }
+      } catch (error) {
+        console.error('Error deleting contact:', error)
+        alert('Error deleting contact. Please check your connection.')
       }
     }
   }
 
-  const exportContacts = () => {
-    contactsService.backupContacts()
+  const exportContacts = async () => {
+    try {
+      const data = await contactsService.exportContacts()
+      const blob = new Blob([data], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `zerorisk-contacts-backup-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      alert('Contacts exported successfully!')
+    } catch (error) {
+      console.error('Error exporting contacts:', error)
+      alert('Error exporting contacts. Please try again.')
+    }
   }
 
   const handleSendEmail = (contact: Contact) => {
     setSelectedContact(contact)
     setShowEmailComposer(true)
+  }
+
+  const handleBulkImportComplete = async (imported: number, skipped: number, errors: string[]) => {
+    let message = `Supabase Import completed!\n\n✅ Imported: ${imported} contacts to cloud database`
+    
+    if (skipped > 0) {
+      message += `\n⚠️ Skipped: ${skipped} contacts`
+    }
+    
+    if (errors.length > 0) {
+      message += `\n\n❗ Issues encountered:`
+      errors.slice(0, 5).forEach(error => {
+        message += `\n• ${error}`
+      })
+      if (errors.length > 5) {
+        message += `\n• ... and ${errors.length - 5} more issues`
+      }
+    }
+    
+    alert(message)
+    await loadContacts() // Reload contacts to show imported ones
+  }
+
+  const migrateFromLocalStorage = async () => {
+    if (window.confirm('Migrate existing localStorage contacts to Supabase?\n\nThis will copy your local contacts to the cloud database.')) {
+      try {
+        const result = await contactsService.migrateFromLocalStorage()
+        let message = `Migration completed!\n\n✅ Migrated: ${result.imported} contacts to Supabase`
+        
+        if (result.errors.length > 0) {
+          message += `\n\n❗ Issues encountered:`
+          result.errors.slice(0, 3).forEach(error => {
+            message += `\n• ${error}`
+          })
+        }
+        
+        alert(message)
+        await loadContacts()
+      } catch (error) {
+        console.error('Error migrating contacts:', error)
+        alert('Error migrating contacts. Please try again.')
+      }
+    }
   }
 
   const handleEmailSend = async (emailData: EmailData) => {
@@ -230,21 +308,41 @@ export default function FollowUpMaster() {
       
       console.log(`🚀 Attempting to send email to: ${emailData.to}`)
       console.log(`📧 Subject: ${emailData.subject}`)
+      console.log(`📝 Template: ${emailData.template || 'None'}`)
+      console.log(`🎯 EmailJS Mode: ${emailData.useEmailJS ? 'YES' : 'NO'}`)
       
-      // Send email using email service
-      const result = await emailService.sendEmail({
-        to: emailData.to,
-        subject: emailData.subject,
-        html: emailData.body,
-        attachments: emailData.attachments?.map(file => ({
-          filename: file.name,
-          content: file
-        }))
-      })
+      let result
+      
+      // Use EmailJS template method if enabled
+      if (emailData.useEmailJS) {
+        result = await emailService.sendEmailJSTemplate({
+          to: emailData.to,
+          templateType: emailData.template || 'general',
+          subject: emailData.subject,
+          body: emailData.body,
+          contactName: selectedContact.name,
+          contactPhone: selectedContact.phone,
+          contactEmail: selectedContact.email,
+          organization: selectedContact.organization
+        })
+      } else {
+        // Use standard email method
+        result = await emailService.sendEmail({
+          to: emailData.to,
+          subject: emailData.subject,
+          html: emailData.body,
+          attachments: emailData.attachments?.map(file => ({
+            filename: file.name,
+            content: file
+          }))
+        })
+      }
       
       if (result.success) {
-        alert(`✅ Email sent successfully to ${emailData.to}!\n\nMessage ID: ${result.messageId}`)
-        console.log(`✅ Email delivered successfully!`)
+        const method = emailData.useEmailJS ? 'EmailJS Template' : 'Standard Email'
+        const templateInfo = emailData.template ? ` (${emailData.template.replace('_', ' ').toUpperCase()})` : ' (GENERAL)'
+        alert(`✅ Email sent successfully to ${emailData.to}!\n\nMethod: ${method}${templateInfo}\nMessage ID: ${result.messageId}`)
+        console.log(`✅ Email delivered successfully via ${method}!`)
         setShowEmailComposer(false)
         setSelectedContact(null)
       } else {
@@ -279,6 +377,20 @@ export default function FollowUpMaster() {
             >
               <span className="material-icon text-sm">download</span>
               Export Contacts
+            </button>
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <span className="material-icon text-sm">upload</span>
+              Bulk Import
+            </button>
+            <button
+              onClick={migrateFromLocalStorage}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <span className="material-icon text-sm">cloud_upload</span>
+              Migrate to Cloud
             </button>
             <button
               onClick={() => followUpService.processAutomaticFollowUps()}
@@ -327,18 +439,60 @@ export default function FollowUpMaster() {
           </div>
         </div>
 
-        {/* Contacts Quick View */}
-        <div className="bg-white p-4 rounded-lg border mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-medium text-gray-900">Quick Contacts</h3>
-            <div className="flex items-center gap-4 text-sm text-gray-500">
-              <span>{contactStats.total} total</span>
-              <span>•</span>
-              <span>{contactStats.payers} payers</span>
-              <span>•</span>
-              <span>{contactStats.hospitals} hospitals</span>
+        {/* Getting Started or Contacts Quick View */}
+        {contacts.length === 0 ? (
+          <GettingStarted
+            onAddContact={() => setShowContactManager(true)}
+            onCreateFollowUp={() => followUpService.processAutomaticFollowUps()}
+            onImportContacts={() => {
+              const input = document.createElement('input')
+              input.type = 'file'
+              input.accept = '.json'
+              input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0]
+                if (file) {
+                  const reader = new FileReader()
+                  reader.onload = async (event) => {
+                    try {
+                      const data = event.target?.result as string
+                      const result = await contactsService.importContacts(data)
+                      let message = `Import completed!\n\n✅ Imported: ${result.imported} contacts`
+                      
+                      if (result.skipped > 0) {
+                        message += `\n⚠️ Skipped: ${result.skipped} contacts`
+                      }
+                      
+                      if (result.errors.length > 0) {
+                        message += `\n\n❗ Issues encountered:`
+                        result.errors.slice(0, 3).forEach(error => {
+                          message += `\n• ${error}`
+                        })
+                      }
+                      
+                      alert(message)
+                      await loadContacts()
+                    } catch (error) {
+                      alert('Error reading file. Please try again.')
+                    }
+                  }
+                  reader.readAsText(file)
+                }
+              }
+              input.click()
+            }}
+          />
+        ) : (
+          <div className="bg-white p-4 rounded-lg border mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-medium text-gray-900">Quick Contacts</h3>
+              <div className="flex items-center gap-4 text-sm text-gray-500">
+                <span>{contactStats.total} total</span>
+                <span>•</span>
+                <span>{contactStats.payers} payers</span>
+                <span>•</span>
+                <span>{contactStats.hospitals} hospitals</span>
+              </div>
             </div>
-          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {contacts.map((contact) => (
               <div key={contact.id} className="border rounded-lg p-3 hover:bg-gray-50 relative group">
@@ -422,6 +576,7 @@ export default function FollowUpMaster() {
             )}
           </div>
         </div>
+        )}
 
         {/* Filters */}
         <div className="bg-white p-4 rounded-lg border mb-6">
@@ -720,7 +875,7 @@ export default function FollowUpMaster() {
       {/* Footer */}
       <footer className="py-6 border-t border-gray-200 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-gray-400">
-          <p>v2.3 | Follow-up Master Dashboard with EmailJS Live Configuration | zeroriskagent.com</p>
+          <p>v2.5 | Follow-up Master with Supabase Cloud Database | zeroriskagent.com</p>
         </div>
       </footer>
 
@@ -741,6 +896,14 @@ export default function FollowUpMaster() {
             setShowEmailComposer(false)
             setSelectedContact(null)
           }}
+        />
+      )}
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <BulkContactImport
+          onImportComplete={handleBulkImportComplete}
+          onClose={() => setShowBulkImport(false)}
         />
       )}
     </div>
