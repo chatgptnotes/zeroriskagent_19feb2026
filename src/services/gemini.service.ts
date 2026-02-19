@@ -74,10 +74,8 @@ async function fileToBase64(file: File): Promise<string> {
 
 // List of Gemini models to try (in order of preference)
 const GEMINI_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-pro-vision',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-lite',
 ]
 
 // Extract ALL records from a table/spreadsheet image
