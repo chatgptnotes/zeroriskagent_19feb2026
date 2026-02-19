@@ -403,7 +403,7 @@ export default function SuperAdminDashboard() {
                   <tr key={`${stageIndex}-${statusIndex}`} className="border-b border-gray-300 hover:bg-gray-50">
                     {statusIndex === 0 && (
                       <td 
-                        rowSpan={stageData.statuses.length}
+                        rowSpan={(stageData.statuses || []).length}
                         className="border-r border-gray-400 px-4 py-3 bg-teal-50 font-medium text-gray-800 align-top"
                       >
                         {stageData.stage}
