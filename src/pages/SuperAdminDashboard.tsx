@@ -273,7 +273,7 @@ export default function SuperAdminDashboard() {
 
   // Use temp data first, then database data, then dummy data
   const activeData = tempData || esicData
-  const claimsData = activeData ? activeData.stageData : dummyClaimsData
+  const claimsData = activeData?.stageData?.length ? activeData.stageData : dummyClaimsData
   const totalClaims = activeData ? activeData.totalClaims : 
     dummyClaimsData.reduce((acc, stage) => {
       stage.statuses.forEach(status => {
@@ -399,7 +399,7 @@ export default function SuperAdminDashboard() {
             </thead>
             <tbody>
               {claimsData.map((stageData, stageIndex) => (
-                stageData.statuses.map((status, statusIndex) => (
+                (stageData.statuses || []).map((status, statusIndex) => (
                   <tr key={`${stageIndex}-${statusIndex}`} className="border-b border-gray-300 hover:bg-gray-50">
                     {statusIndex === 0 && (
                       <td 
