@@ -6,7 +6,7 @@ import Navigation from './components/Navigation'
 import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
 import AdminRegister from './pages/AdminRegister'
-import SuperAdminDashboard from './pages/SuperAdminDashboard'
+// SuperAdminDashboard replaced by ExtractionsPanel on Dashboard tab
 import AdminDashboard from './pages/AdminDashboard'
 import StaffDashboard from './pages/StaffDashboard'
 import RecoveryDashboard from './pages/RecoveryDashboard'
@@ -40,7 +40,7 @@ function App() {
           <Route path="/dashboard/super-admin" element={
             <ProtectedRoute requiredRole={['super_admin']}>
               <Navigation />
-              <SuperAdminDashboard />
+              <ExtractionsPanel />
             </ProtectedRoute>
           } />
           
@@ -76,13 +76,6 @@ function App() {
             <ProtectedRoute>
               <Navigation />
               <Upload />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/extractions" element={
-            <ProtectedRoute>
-              <Navigation />
-              <ExtractionsPanel />
             </ProtectedRoute>
           } />
 

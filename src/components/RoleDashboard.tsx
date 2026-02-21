@@ -1,5 +1,5 @@
 import { useAuth } from '../hooks/useAuth'
-import SuperAdminDashboard from '../pages/SuperAdminDashboard'
+import ExtractionsPanel from '../pages/ExtractionsPanel'
 import AdminDashboard from '../pages/AdminDashboard'
 import StaffDashboard from '../pages/StaffDashboard'
 
@@ -38,7 +38,7 @@ export default function RoleDashboard() {
   // Route to appropriate dashboard based on role
   switch (profile.role) {
     case 'super_admin':
-      return <SuperAdminDashboard />
+      return <ExtractionsPanel />
     
     case 'hospital_admin':
       return <AdminDashboard />

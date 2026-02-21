@@ -41,12 +41,6 @@ export default function Navigation() {
       show: true
     },
     {
-      path: '/extractions',
-      label: 'Extractions',
-      icon: 'analytics',
-      show: true
-    },
-    {
       path: '/users',
       label: 'Users',
       icon: 'people',
