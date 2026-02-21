@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { ESICClaimsData } from '../services/gemini.service'
 
-// Data structure matching the ESIC interface
+// Data structure matching the claims dashboard interface
 interface ClaimStatusData {
   stage: string
   statuses: {
@@ -137,7 +137,7 @@ export default function SuperAdminDashboard() {
         localStorage.removeItem('tempESICData')
       }
     } catch (error) {
-      console.error('Error parsing temp ESIC data:', error)
+      console.error('Error parsing temp dashboard data:', error)
     }
   }
 
@@ -153,7 +153,8 @@ export default function SuperAdminDashboard() {
           hospital_name: tempData.hospitalName,
           extracted_at: tempData.extractedAt,
           total_claims: tempData.totalClaims,
-          stage_data: tempData.stageData
+          stage_data: tempData.stageData,
+          payer_type: tempData.panelType || 'esic'
           // Don't set created_at - let database use DEFAULT NOW()
           // Don't set upload_id - it's optional and we don't have it
         })
@@ -222,6 +223,7 @@ export default function SuperAdminDashboard() {
 
       if (data) {
         setEsicData({
+          panelType: data.payer_type || 'esic',
           hospitalName: data.hospital_name,
           extractedAt: data.extracted_at,
           totalClaims: data.total_claims,
@@ -231,7 +233,7 @@ export default function SuperAdminDashboard() {
         setEsicData(null)
       }
     } catch (err) {
-      console.error('Error fetching ESIC data by date:', err)
+      console.error('Error fetching claims data by date:', err)
     } finally {
       setLoading(false)
     }
@@ -254,6 +256,7 @@ export default function SuperAdminDashboard() {
 
       if (data) {
         setEsicData({
+          panelType: data.payer_type || 'esic',
           hospitalName: data.hospital_name,
           extractedAt: data.extracted_at,
           totalClaims: data.total_claims,
@@ -265,7 +268,7 @@ export default function SuperAdminDashboard() {
         setEsicData(null)
       }
     } catch (err) {
-      console.error('Error fetching ESIC data:', err)
+      console.error('Error fetching claims data:', err)
     } finally {
       setLoading(false)
     }
@@ -290,7 +293,7 @@ export default function SuperAdminDashboard() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <span className="material-icon text-primary-600 animate-pulse" style={{ fontSize: '48px' }}>autorenew</span>
-          <p className="text-gray-600">Loading ESIC dashboard...</p>
+          <p className="text-gray-600">Loading claims dashboard...</p>
         </div>
       </div>
     )
@@ -462,7 +465,7 @@ export default function SuperAdminDashboard() {
       {/* Footer */}
       <footer className="mt-8 py-6 border-t border-gray-200 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-gray-400">
-          <p>v1.7 | Last Updated: 2026-01-21 | zeroriskagent.com | ESIC Claims Tracking System</p>
+          <p>v1.7 | Last Updated: 2026-01-21 | zeroriskagent.com | Claims Tracking System</p>
           {tempData && (
             <p className="mt-1 text-blue-600">
               Extracted data from upload • Data not yet saved to database • 
@@ -478,12 +481,12 @@ export default function SuperAdminDashboard() {
           {!tempData && esicData && !selectedDate && (
             <p className="mt-1 text-green-600">
               Data extracted on {new Date(esicData.extractedAt).toLocaleDateString('en-IN')} • 
-              Upload new ESIC dashboard image to update
+              Upload new dashboard image to update
             </p>
           )}
           {!tempData && !esicData && (
             <p className="mt-1 text-yellow-600">
-              Demo data • Upload ESIC dashboard image at <a href="/upload" className="underline hover:text-yellow-700">/upload</a> for live data
+              Demo data • Upload dashboard image at <a href="/upload" className="underline hover:text-yellow-700">/upload</a> for live data
             </p>
           )}
         </div>

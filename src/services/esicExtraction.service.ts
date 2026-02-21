@@ -12,6 +12,7 @@ export interface ESICClaimStatus {
 }
 
 export interface ESICClaimsData {
+  panelType?: string
   hospitalName: string
   extractedAt: string
   totalClaims: {
@@ -98,6 +99,7 @@ export async function saveESICClaimsData(data: ESICClaimsData, uploadId?: string
         extracted_at: data.extractedAt,
         total_claims: data.totalClaims,
         stage_data: data.stageData,
+        payer_type: data.panelType || 'esic',
         upload_id: uploadId,
         created_at: new Date().toISOString()
       })
@@ -145,6 +147,7 @@ export async function getLatestESICClaimsData(): Promise<{
     return {
       success: true,
       data: {
+        panelType: data.payer_type || 'esic',
         hospitalName: data.hospital_name,
         extractedAt: data.extracted_at,
         totalClaims: data.total_claims,

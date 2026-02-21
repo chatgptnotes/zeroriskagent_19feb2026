@@ -258,6 +258,7 @@ export interface Database {
           extracted_at: string
           total_claims: Json
           stage_data: Json
+          payer_type: string | null
           upload_id: string | null
           created_at: string
         }

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useUploads, useUploadFile, useDeleteUpload } from '../hooks/useUpload'
 import { formatFileSize } from '../services/upload.service'
 import { extractAllRecordsFromImage, ClaimRecord, extractESICClaimsFromImage, ESICClaimsData, extractNMICasesFromImage, NMICaseRecord } from '../services/gemini.service'
+import { supabase } from '../lib/supabase'
 
 export default function Upload() {
   const [isDragging, setIsDragging] = useState(false)
@@ -16,6 +17,9 @@ export default function Upload() {
   const [nmiRecords, setNmiRecords] = useState<NMICaseRecord[]>([])
   const [isNMIDashboard, setIsNMIDashboard] = useState(false)
   const [nmiHospitalName, setNmiHospitalName] = useState<string>('')
+  const [detectedPanelType, setDetectedPanelType] = useState<string>('')
+  const [isSavedToDb, setIsSavedToDb] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: uploadsData, isLoading: uploadsLoading } = useUploads()
@@ -76,6 +80,8 @@ export default function Upload() {
     setNmiRecords([])
     setIsNMIDashboard(false)
     setNmiHospitalName('')
+    setDetectedPanelType('')
+    setIsSavedToDb(false)
 
     // Create image preview
     const reader = new FileReader()
@@ -84,7 +90,7 @@ export default function Upload() {
     }
     reader.readAsDataURL(file)
 
-    // Try to detect the type of ESIC dashboard and extract data
+    // Try to detect the type of healthcare dashboard and extract data
     setIsExtracting(true)
     try {
       // First attempt NMI (Need More Info) extraction - most specific
@@ -96,6 +102,7 @@ export default function Upload() {
         setNmiRecords(nmiResult.records)
         setNmiHospitalName(nmiResult.hospitalName)
         setExtractionConfidence(nmiResult.confidence)
+        setDetectedPanelType(nmiResult.panelType || 'other')
 
         // Note: Data is not auto-saved, user can save manually from dashboard
       } else {
@@ -103,10 +110,11 @@ export default function Upload() {
         const esicResult = await extractESICClaimsFromImage(file)
 
         if (esicResult.success && esicResult.data && esicResult.data.stageData.length > 0) {
-          // This looks like an ESIC stage dashboard
+          // This looks like a claims stage dashboard
           setIsESICDashboard(true)
           setEsicData(esicResult.data)
           setExtractionConfidence(esicResult.confidence)
+          setDetectedPanelType(esicResult.data.panelType || 'other')
 
           // Note: Data is not auto-saved, user can save manually from dashboard
         } else {
@@ -116,6 +124,7 @@ export default function Upload() {
           if (result.success && result.records.length > 0) {
             setExtractedRecords(result.records)
             setExtractionConfidence(result.confidence)
+            setDetectedPanelType(result.panelType || 'other')
           } else {
             setExtractionError(result.error || 'No records found in image')
           }
@@ -144,6 +153,8 @@ export default function Upload() {
     setNmiRecords([])
     setIsNMIDashboard(false)
     setNmiHospitalName('')
+    setDetectedPanelType('')
+    setIsSavedToDb(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -157,19 +168,60 @@ export default function Upload() {
     if (result.success) {
       setSelectedFile(null)
       setImagePreview(null)
-      setExtractedRecords([])
-      setExtractionConfidence(0)
-      setExtractionError(null)
-      setEsicData(null)
-      setIsESICDashboard(false)
-      setNmiRecords([])
-      setIsNMIDashboard(false)
-      setNmiHospitalName('')
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
     } else {
       alert(result.error || 'Upload failed. Please try again.')
+    }
+  }
+
+  const handleSaveToDatabase = async () => {
+    setIsSaving(true)
+    try {
+      // Save dashboard data (ESIC/CGHS/ECHS stages)
+      if (esicData && isESICDashboard) {
+        const { error } = await supabase.from('esic_claims_extractions').insert({
+          hospital_name: esicData.hospitalName,
+          extracted_at: esicData.extractedAt,
+          total_claims: esicData.totalClaims,
+          stage_data: esicData.stageData,
+          payer_type: detectedPanelType || 'other',
+        })
+        if (error) throw error
+      }
+
+      // Save NMI records
+      if (nmiRecords.length > 0 && isNMIDashboard) {
+        const { error } = await supabase.from('esic_claims_extractions').insert({
+          hospital_name: nmiHospitalName || 'Unknown Hospital',
+          extracted_at: new Date().toISOString(),
+          total_claims: { totalRecords: nmiRecords.length },
+          stage_data: nmiRecords,
+          payer_type: detectedPanelType || 'other',
+        })
+        if (error) throw error
+      }
+
+      // Save general extracted records
+      if (extractedRecords.length > 0 && !isESICDashboard && !isNMIDashboard) {
+        const { error } = await supabase.from('esic_claims_extractions').insert({
+          hospital_name: extractedRecords[0]?.hospitalName || 'Unknown Hospital',
+          extracted_at: new Date().toISOString(),
+          total_claims: { totalRecords: extractedRecords.length },
+          stage_data: extractedRecords,
+          payer_type: detectedPanelType || 'other',
+        })
+        if (error) throw error
+      }
+
+      setIsSavedToDb(true)
+      alert('Data saved to database successfully!')
+    } catch (error) {
+      console.error('Error saving to database:', error)
+      alert(`Failed to save data: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -326,7 +378,10 @@ export default function Upload() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div
+                    className="space-y-3 cursor-pointer"
+                    onClick={handleBrowseClick}
+                  >
                     <div className="flex items-center justify-center">
                       <span
                         className={`material-icon ${isDragging ? 'text-primary-500' : 'text-gray-400'}`}
@@ -340,16 +395,9 @@ export default function Upload() {
                         Drag and drop your file here
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        or
+                        or click to browse
                       </p>
                     </div>
-                    <button
-                      onClick={handleBrowseClick}
-                      className="btn-primary text-sm"
-                    >
-                      <span className="material-icon" style={{ fontSize: '16px' }}>folder_open</span>
-                      Browse Files
-                    </button>
                     <p className="text-xs text-gray-500">
                       JPG, PNG, GIF, WebP (Max 10MB)
                     </p>
@@ -389,7 +437,7 @@ export default function Upload() {
                       <span className="material-icon text-green-600" style={{ fontSize: '20px' }}>info</span>
                       <div>
                         <p className="text-sm font-medium text-green-800">
-                          NMI Cases extracted
+                          {detectedPanelType ? detectedPanelType.toUpperCase() : ''} NMI Cases extracted
                         </p>
                         <p className="text-xs text-green-700">
                           {nmiHospitalName} - {nmiRecords.length} records
@@ -411,7 +459,7 @@ export default function Upload() {
                       <span className="material-icon text-green-600" style={{ fontSize: '20px' }}>account_balance</span>
                       <div>
                         <p className="text-sm font-medium text-green-800">
-                          ESIC Dashboard extracted
+                          {detectedPanelType ? detectedPanelType.toUpperCase() : 'Claims'} Dashboard extracted
                         </p>
                         <p className="text-xs text-green-700">
                           {esicData.hospitalName} - {esicData.totalClaims.counts} total claims
@@ -532,13 +580,30 @@ export default function Upload() {
                 {/* Table Footer */}
                 <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                   <span className="flex items-center gap-1">
-                    <span className="material-icon" style={{ fontSize: '14px' }}>check_circle</span>
-                    Data saved to database
+                    <span className="material-icon" style={{ fontSize: '14px' }}>info</span>
+                    {nmiRecords.length} NMI records extracted
                   </span>
-                  <button className="flex items-center gap-1 text-primary-600 hover:text-primary-700">
-                    <span className="material-icon" style={{ fontSize: '14px' }}>download</span>
-                    Export CSV
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {isSavedToDb ? (
+                      <span className="text-green-600 flex items-center gap-1">
+                        <span className="material-icon" style={{ fontSize: '14px' }}>check_circle</span>
+                        Saved to database
+                      </span>
+                    ) : (
+                      <button
+                        onClick={handleSaveToDatabase}
+                        disabled={isSaving}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
+                      >
+                        <span className="material-icon" style={{ fontSize: '14px' }}>{isSaving ? 'refresh' : 'save'}</span>
+                        {isSaving ? 'Saving...' : 'Save Data'}
+                      </button>
+                    )}
+                    <button className="flex items-center gap-1 text-primary-600 hover:text-primary-700">
+                      <span className="material-icon" style={{ fontSize: '14px' }}>download</span>
+                      Export CSV
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -551,7 +616,7 @@ export default function Upload() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <span className="material-icon text-primary-600">account_balance</span>
-                    ESIC Dashboard Data
+                    {detectedPanelType ? detectedPanelType.toUpperCase() : 'Claims'} Dashboard Data
                   </h2>
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-500">
@@ -560,7 +625,7 @@ export default function Upload() {
                     <button
                       onClick={() => {
                         // Store extracted data temporarily for dashboard
-                        localStorage.setItem('tempESICData', JSON.stringify(esicData))
+                        localStorage.setItem('tempESICData', JSON.stringify({ ...esicData, panelType: detectedPanelType }))
                         window.location.href = '/dashboard/super-admin'
                       }}
                       className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1"
@@ -640,14 +705,25 @@ export default function Upload() {
                 {/* Action Footer */}
                 <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
                   <span className="flex items-center gap-1">
-                    <span className="material-icon" style={{ fontSize: '14px' }}>check_circle</span>
-                    Data extracted from ESIC dashboard
+                    <span className="material-icon" style={{ fontSize: '14px' }}>info</span>
+                    Data extracted from {detectedPanelType ? detectedPanelType.toUpperCase() : 'claims'} dashboard
                   </span>
                   <div className="flex items-center gap-3">
-                    <span className="text-green-600 flex items-center gap-1">
-                      <span className="material-icon" style={{ fontSize: '14px' }}>check</span>
-                      Saved to database
-                    </span>
+                    {isSavedToDb ? (
+                      <span className="text-green-600 flex items-center gap-1">
+                        <span className="material-icon" style={{ fontSize: '14px' }}>check_circle</span>
+                        Saved to database
+                      </span>
+                    ) : (
+                      <button
+                        onClick={handleSaveToDatabase}
+                        disabled={isSaving}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
+                      >
+                        <span className="material-icon" style={{ fontSize: '14px' }}>{isSaving ? 'refresh' : 'save'}</span>
+                        {isSaving ? 'Saving...' : 'Save Data'}
+                      </button>
+                    )}
                     <button className="flex items-center gap-1 text-primary-600 hover:text-primary-700">
                       <span className="material-icon" style={{ fontSize: '14px' }}>download</span>
                       Export CSV
@@ -729,10 +805,27 @@ export default function Upload() {
                 {/* Table Footer */}
                 <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                   <span>Scroll horizontally to see all columns</span>
+                  <div className="flex items-center gap-3">
+                    {isSavedToDb ? (
+                      <span className="text-green-600 flex items-center gap-1">
+                        <span className="material-icon" style={{ fontSize: '14px' }}>check_circle</span>
+                        Saved to database
+                      </span>
+                    ) : (
+                      <button
+                        onClick={handleSaveToDatabase}
+                        disabled={isSaving}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
+                      >
+                        <span className="material-icon" style={{ fontSize: '14px' }}>{isSaving ? 'refresh' : 'save'}</span>
+                        {isSaving ? 'Saving...' : 'Save Data'}
+                      </button>
+                    )}
                   <button className="flex items-center gap-1 text-primary-600 hover:text-primary-700">
                     <span className="material-icon" style={{ fontSize: '14px' }}>download</span>
                     Export CSV
                   </button>
+                  </div>
                 </div>
               </div>
             </div>

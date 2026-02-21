@@ -12,6 +12,7 @@ import StaffDashboard from './pages/StaffDashboard'
 import RecoveryDashboard from './pages/RecoveryDashboard'
 import NMITracker from './pages/NMITracker'
 import Upload from './pages/Upload'
+import ExtractionsPanel from './pages/ExtractionsPanel'
 import UserManagement from './pages/UserManagement'
 import FollowUpMaster from './pages/FollowUpMaster'
 import ContactUs from './pages/ContactUs'
@@ -75,6 +76,13 @@ function App() {
             <ProtectedRoute>
               <Navigation />
               <Upload />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/extractions" element={
+            <ProtectedRoute>
+              <Navigation />
+              <ExtractionsPanel />
             </ProtectedRoute>
           } />
 

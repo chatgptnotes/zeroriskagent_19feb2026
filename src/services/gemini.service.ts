@@ -31,6 +31,7 @@ export interface MultiRecordExtractionResult {
   records: ClaimRecord[]
   totalCount: number
   confidence: number
+  panelType?: string
   error: string | null
 }
 
@@ -74,8 +75,8 @@ async function fileToBase64(file: File): Promise<string> {
 
 // List of Gemini models to try (in order of preference)
 const GEMINI_MODELS = [
+  'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
-  'gemini-2.0-flash-lite',
 ]
 
 // Extract ALL records from a table/spreadsheet image
@@ -94,7 +95,7 @@ export async function extractAllRecordsFromImage(file: File): Promise<MultiRecor
     const base64Data = await fileToBase64(file)
     const mimeType = file.type || 'image/jpeg'
 
-    const prompt = `This image contains a table or spreadsheet with multiple healthcare claim records. Extract ALL rows from the table.
+    const prompt = `This image contains a table or spreadsheet with multiple healthcare claim records. This could be from any healthcare panel system such as ESIC, CGHS, ECHS, Ayushman Bharat, State Government health scheme, private insurance, or TPA portal. Extract ALL rows from the table.
 
 For EACH row in the table, extract these fields (use null if not visible):
 - sNo: Serial number or row number
@@ -115,10 +116,13 @@ For EACH row in the table, extract these fields (use null if not visible):
 - status: Claim status
 - remarks: Any remarks or notes
 
+Also detect which healthcare panel/payer system this image belongs to from visual cues (logos, headers, terminology). Use one of: "esic", "cghs", "echs", "state_govt", "private_insurance", "corporate", "other".
+
 IMPORTANT: Extract EVERY row visible in the table. Do not skip any rows.
 
 Return ONLY valid JSON in this exact format:
 {
+  "panelType": "esic",
   "records": [
     {
       "sNo": 1,
@@ -173,7 +177,6 @@ Return ONLY valid JSON in this exact format:
               ],
               generationConfig: {
                 temperature: 0.1,
-                topK: 32,
                 topP: 1,
                 maxOutputTokens: 8192,
               },
@@ -185,8 +188,9 @@ Return ONLY valid JSON in this exact format:
           console.log(`Successfully used model: ${model}`)
           break
         } else {
+          const errorBody = await response.text().catch(() => 'Could not read error body')
           lastError = `${model}: ${response.status}`
-          console.warn(`Model ${model} failed with status ${response.status}, trying next...`)
+          console.warn(`Model ${model} failed with status ${response.status}, trying next...`, errorBody)
           response = null
         }
       } catch (err) {
@@ -234,6 +238,7 @@ Return ONLY valid JSON in this exact format:
         records: extractedData.records || [],
         totalCount: extractedData.totalCount || extractedData.records?.length || 0,
         confidence: extractedData.confidence || 80,
+        panelType: extractedData.panelType || 'other',
         error: null,
       }
     } catch (parseError) {
@@ -274,6 +279,7 @@ export interface ESICStageData {
 }
 
 export interface ESICClaimsData {
+  panelType?: string
   hospitalName: string
   extractedAt: string
   totalClaims: {
@@ -307,29 +313,17 @@ export async function extractESICClaimsFromImage(file: File): Promise<ESICExtrac
     const base64Data = await fileToBase64(file)
     const mimeType = file.type || 'image/jpeg'
 
-    const prompt = `This image contains an ESIC Claims Dashboard with a table showing different stages and statuses. Extract ALL data from this table.
+    const prompt = `This image contains a healthcare claims processing dashboard with a table showing different stages/phases and their statuses. This could be from any healthcare panel system such as ESIC, CGHS, ECHS, Ayushman Bharat, State Government health scheme, private insurance, or TPA portal.
 
-The table has these columns:
-- Stage (left column)
-- Status (second column)
-- In Patient (numbers)
-- OPD Patient (numbers)
-- Counts (numbers)
-- Enhancement (numbers)
+Detect which panel/payer system this belongs to from visual cues (logos, headers, terminology, stage names). Use one of: "esic", "cghs", "echs", "state_govt", "private_insurance", "corporate", "other".
 
-Expected stages include:
-- ESIC Referral
-- Hospital Intimation
-- BPA Acknowledgement
-- Hospital Submission
-- ESIC - Document Receiver
-- ESIC - Document Verifier
-- BPA Scrutinizer
-- ESIC - Medical Officer L1
-- ESIC - Medical Officer L2
-- ESIC - CFA Sanction
-- ESIC - Accounts
-- BPA Maintenance
+The table typically has columns like:
+- Stage/Phase (left column - processing stages)
+- Status (second column - specific status within each stage)
+- In Patient / IP (numbers)
+- OPD Patient / OP (numbers)
+- Counts / Total (numbers)
+- Enhancement / Additional (numbers)
 
 For EACH stage, extract ALL statuses listed under it with their corresponding numbers.
 Pay attention to statuses that appear in red color - these should be marked as "isHighlighted: true".
@@ -340,6 +334,7 @@ Also extract:
 
 Return ONLY valid JSON in this exact format:
 {
+  "panelType": "esic",
   "hospitalName": "Hospital Name Here",
   "extractedAt": "${new Date().toISOString()}",
   "totalClaims": {
@@ -350,23 +345,15 @@ Return ONLY valid JSON in this exact format:
   },
   "stageData": [
     {
-      "stage": "ESIC Referral",
+      "stage": "Stage Name",
       "statuses": [
         {
-          "status": "Patient Referral",
+          "status": "Status Name",
           "inPatient": 28,
           "opd": 65,
           "counts": 93,
           "enhancement": 0,
           "isHighlighted": false
-        },
-        {
-          "status": "Need More Information [Ref]",
-          "inPatient": 0,
-          "opd": 0,
-          "counts": 0,
-          "enhancement": 0,
-          "isHighlighted": true
         }
       ]
     }
@@ -405,7 +392,6 @@ Return ONLY valid JSON in this exact format:
               ],
               generationConfig: {
                 temperature: 0.1,
-                topK: 32,
                 topP: 1,
                 maxOutputTokens: 8192,
               },
@@ -414,7 +400,7 @@ Return ONLY valid JSON in this exact format:
         )
 
         if (response.ok) {
-          console.log(`Successfully used model for ESIC extraction: ${model}`)
+          console.log(`Successfully used model for dashboard extraction: ${model}`)
           break
         } else {
           lastError = `${model}: ${response.status}`
@@ -462,6 +448,7 @@ Return ONLY valid JSON in this exact format:
       return {
         success: true,
         data: {
+          panelType: extractedData.panelType || 'other',
           hospitalName: extractedData.hospitalName || 'Unknown Hospital',
           extractedAt: extractedData.extractedAt || new Date().toISOString(),
           totalClaims: extractedData.totalClaims || { inPatient: 0, opd: 0, counts: 0, enhancement: 0 },
@@ -471,7 +458,7 @@ Return ONLY valid JSON in this exact format:
         confidence: extractedData.confidence || 80
       }
     } catch (parseError) {
-      console.error('ESIC JSON parse error:', parseError, 'Raw response:', textContent)
+      console.error('Dashboard JSON parse error:', parseError, 'Raw response:', textContent)
       return {
         success: false,
         data: null,
@@ -480,11 +467,11 @@ Return ONLY valid JSON in this exact format:
       }
     }
   } catch (error) {
-    console.error('ESIC Gemini extraction error:', error)
+    console.error('Dashboard Gemini extraction error:', error)
     return {
       success: false,
       data: null,
-      error: error instanceof Error ? error.message : 'Unknown error during ESIC extraction',
+      error: error instanceof Error ? error.message : 'Unknown error during dashboard extraction',
       confidence: 0
     }
   }
@@ -508,6 +495,7 @@ export interface NMIExtractionResult {
   totalCount: number
   confidence: number
   hospitalName: string
+  panelType?: string
   pageInfo?: string
   error: string | null
 }
@@ -529,20 +517,22 @@ export async function extractNMICasesFromImage(file: File): Promise<NMIExtractio
     const base64Data = await fileToBase64(file)
     const mimeType = file.type || 'image/jpeg'
 
-    const prompt = `This image shows an ESIC Bill Processing Agency dashboard displaying "Need More Info Cases" table.
+    const prompt = `This image shows a healthcare claims processing dashboard displaying a "Need More Info", "Reverted Cases", or "Pending Info" table. This could be from any healthcare panel system such as ESIC, CGHS, ECHS, Ayushman Bharat, State Government health scheme, private insurance, or TPA portal.
 
-Extract ALL rows from the table with these EXACT columns:
+Detect which panel/payer system this belongs to from visual cues (logos, headers, terminology). Use one of: "esic", "cghs", "echs", "state_govt", "private_insurance", "corporate", "other".
+
+Extract ALL rows from the table with these columns (use null if a column is not present):
 - Sr. (Serial number)
-- ID (numeric claim ID, shown in yellow/link color)
-- Admit No. (admission number like IH25D12009)
-- Card ID (like 2302791383)
-- Patient Name (full name with title like "Mr. Kailash Zha")
+- ID (claim ID, may be shown in yellow/link color)
+- Admit No. (admission number)
+- Card ID (beneficiary card ID)
+- Patient Name (full name)
 - Claim Amt (claim amount in rupees, numeric)
-- Approved Amt (approved amount, usually 0)
-- Reverted Back On (date and time like "18-Jan-2026 15:58")
+- Approved Amt (approved amount)
+- Reverted Back On (date and time)
 
 Also extract:
-- Hospital name from the top (e.g., "HOPE HOSPITAL NAGPUR SST")
+- Hospital name from the top of the dashboard
 - Page info if visible (e.g., "Page 1 of 2")
 
 IMPORTANT:
@@ -553,7 +543,8 @@ IMPORTANT:
 
 Return ONLY valid JSON in this exact format:
 {
-  "hospitalName": "HOPE HOSPITAL NAGPUR SST",
+  "panelType": "esic",
+  "hospitalName": "HOSPITAL NAME",
   "pageInfo": "Page 1 of 2",
   "records": [
     {
@@ -602,7 +593,6 @@ Return ONLY valid JSON in this exact format:
               ],
               generationConfig: {
                 temperature: 0.1,
-                topK: 32,
                 topP: 1,
                 maxOutputTokens: 8192,
               },
@@ -666,6 +656,7 @@ Return ONLY valid JSON in this exact format:
         totalCount: extractedData.totalCount || extractedData.records?.length || 0,
         confidence: extractedData.confidence || 80,
         hospitalName: extractedData.hospitalName || '',
+        panelType: extractedData.panelType || 'other',
         pageInfo: extractedData.pageInfo,
         error: null,
       }
@@ -777,7 +768,6 @@ Return ONLY valid JSON in this exact format:
               ],
               generationConfig: {
                 temperature: 0.1,
-                topK: 32,
                 topP: 1,
                 maxOutputTokens: 4096,
               },
@@ -789,8 +779,9 @@ Return ONLY valid JSON in this exact format:
           console.log(`Successfully used model: ${model}`)
           break
         } else {
+          const errorBody = await response.text().catch(() => 'Could not read error body')
           lastError = `${model}: ${response.status}`
-          console.warn(`Model ${model} failed with status ${response.status}, trying next...`)
+          console.warn(`Model ${model} failed with status ${response.status}, trying next...`, errorBody)
           response = null
         }
       } catch (err) {
