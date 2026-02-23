@@ -89,9 +89,13 @@ export default function LandingPage() {
             </div>
 
             {/* Subtitle */}
-            <p className="text-xl md:text-2xl text-gray-300 mb-12 leading-relaxed max-w-4xl mx-auto">
-              AI-powered platform recovering <span className="text-red-400 font-semibold">millions in denied claims</span> from ESIC, CGHS, and ECHS.
-              <span className="block mt-2 text-lg text-gray-400">You only pay when we win.</span>
+            <h2 className="text-xl md:text-2xl text-gray-300 mb-4 leading-relaxed max-w-4xl mx-auto font-semibold">
+              Zero Risk. Maximum Recovery. AI-Powered Healthcare Claims Recovery.
+            </h2>
+            <p className="text-lg md:text-xl text-gray-400 mb-12 leading-relaxed max-w-4xl mx-auto">
+              We recover your stuck hospital claims — <span className="text-red-400 font-semibold">ESIC, CGHS, ECHS &amp; private insurance</span>.
+              <span className="block mt-2">You pay only 25% of what we recover. <strong className="text-white">Zero upfront cost.</strong></span>
+              <span className="block mt-1 text-base text-gray-500">Currently tracking ₹1 Crore+ in outstanding hospital invoices across India.</span>
             </p>
 
             {/* CTA Buttons */}
